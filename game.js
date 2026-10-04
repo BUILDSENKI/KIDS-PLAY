@@ -7,9 +7,9 @@ const puzzleThemes = [...themes];
 const base = ['#ed5c69','#f3984b','#f9d55d','#80bd61','#38ab8d','#63c8de','#468ad6','#8164b6','#d77dc1','#855b42','#ffffff','#333344'];
 const colorNames = ['あか','オレンジ','きいろ','きみどり','みどり','みずいろ','あお','むらさき','ピンク','ちゃいろ','しろ','くろ'];
 let cleanup = () => {}, roomScroll = null, current = 'home', lifecycle = 0;
-app.addEventListener('touchmove',e=>{if(current==='color'&&e.touches.length>1)e.preventDefault();},{passive:false});
-app.addEventListener('gesturestart',e=>{if(current==='color')e.preventDefault();},{passive:false});
-app.addEventListener('gesturechange',e=>{if(current==='color')e.preventDefault();},{passive:false});
+app.addEventListener('touchmove',e=>{if((current==='color'||current==='puzzle')&&e.touches.length>1)e.preventDefault();},{passive:false});
+app.addEventListener('gesturestart',e=>{if(current==='color'||current==='puzzle')e.preventDefault();},{passive:false});
+app.addEventListener('gesturechange',e=>{if(current==='color'||current==='puzzle')e.preventDefault();},{passive:false});
 const assets = {}, sprites = {}, rand = (a,b) => a + Math.random()*(b-a);
 const gripRadii = [.115,.095,.115,.108,.095,.085,.11,.11];
 function gripResult(item,x,z) {
@@ -210,21 +210,39 @@ function puzzleSlots(cols,rows,pw,ph){
   for(let i=slots.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[slots[i],slots[j]]=[slots[j],slots[i]];}return slots;
 }
 function portraitPuzzleSlots(cols,rows,pw,ph){const slots=[],gap=2,zones=[{x:3,y:5,w:470,h:245},{x:5,y:260,w:102,h:480},{x:3,y:750,w:470,h:165}];for(const z of zones){const nx=Math.floor((z.w+gap)/(pw+gap)),ny=Math.floor((z.h+gap)/(ph+gap));for(let y=0;y<ny;y++)for(let x=0;x<nx;x++)slots.push({x:z.x+x*(pw+gap),y:z.y+y*(ph+gap)});}if(slots.length<cols*rows)throw new Error('Puzzle tray too small');return slots.slice(0,cols*rows);}
+function puzzleBoardPoint(q,pose,bx,by,bw,bh){return {x:bx+bw/2+(q.x-bx-bw/2-pose.x)/pose.scale,y:by+bh/2+(q.y-by-bh/2-pose.y)/pose.scale};}
+function allPinNeonLit(state){return !!state&&state.neon.length===6&&state.neon.every(Boolean);}
 function puzzle(t,d) {
   shell('puzzle','ピースを もって、ぴったりの ばしょへ');const [c,g]=makeCanvas(portraitLayout()?480:1000,portraitLayout()?930:500),cols=[4,6,6,8][d],rows=[3,4,6,6][d],bw=portraitLayout()?360:300,bh=portraitLayout()?480:400,bx=portraitLayout()?112:350,by=portraitLayout()?260:50,pw=bw/cols,ph=bh/rows;
   const art=document.createElement('canvas');art.width=bw;art.height=bh;art.getContext('2d').drawImage(sprites.puzzles[t],0,0,bw,bh);
   const slots=portraitLayout()?portraitPuzzleSlots(cols,rows,pw,ph):puzzleSlots(cols,rows,pw,ph);
   if(portraitLayout())for(let i=slots.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[slots[i],slots[j]]=[slots[j],slots[i]];}
-  const pieces=Array.from({length:cols*rows},(_,i)=>({i,x:slots[i].x,y:slots[i].y,ox:slots[i].x,oy:slots[i].y,done:false}));let drag=null,off={},count=0;
+  const pieces=Array.from({length:cols*rows},(_,i)=>({i,x:slots[i].x,y:slots[i].y,ox:slots[i].x,oy:slots[i].y,done:false}));let drag=null,off={},count=0,pose={scale:1,x:0,y:0},dragBoard=false,gesture=null,multi=false;const touches=new Map();
   document.querySelector('#toolbar').innerHTML=`<span class="progress" id="pcount">0 / ${pieces.length}</span>`;
   const mini=document.createElement('button');mini.className='mini';mini.append(photoThumb(sprites.puzzles[t],75,52));mini.setAttribute('aria-label','おてほんを おおきくする');
   mini.onclick=()=>{const o=document.createElement('div');o.className='overlay';o.setAttribute('aria-label','おてほん。まわりをタップすると とじる');const im=document.createElement('img');im.src=art.toDataURL();im.alt=puzzleThemes[t]+'の おてほん';im.style.cssText='width:60%;max-height:80%;object-fit:contain;border:8px solid white;border-radius:24px';o.append(im);o.onclick=e=>{if(e.target===o)o.remove();};app.append(o);};if(portraitLayout()){mini.classList.add('portrait-reference');document.querySelector('#toolbar').prepend(mini);}else document.querySelector('#play').append(mini);
-  const dims=()=>({w:pw,h:ph});
-  function draw(){g.clearRect(0,0,c.width,c.height);g.drawImage(sprites.stages[3],0,0,c.width,c.height);rounded(g,bx-8,by-8,bw+16,bh+16,'#d0bda4',10);g.globalAlpha=.15;g.drawImage(art,bx,by);g.globalAlpha=1;pieces.filter(p=>p!==drag).forEach(p=>{const z=dims(p);drawPiece(g,art,p,cols,rows,pw,ph,z.w,z.h);});if(drag)drawPiece(g,art,drag,cols,rows,pw,ph,pw,ph);}
-  c.onpointerdown=e=>{const q=point(e,c);drag=[...pieces].reverse().find(p=>{const z=dims(p);return !p.done&&q.x>=p.x&&q.x<=p.x+z.w&&q.y>=p.y&&q.y<=p.y+z.h;});if(drag){off={x:q.x-drag.x,y:q.y-drag.y};c.setPointerCapture(e.pointerId);draw();}};
-  c.onpointermove=e=>{if(drag){const q=point(e,c);drag.x=Math.max(0,Math.min(c.width-pw,q.x-off.x));drag.y=Math.max(0,Math.min(c.height-ph,q.y-off.y));draw();}};
-  function release(cancelled=false){if(!drag)return;const x=bx+drag.i%cols*pw,y=by+Math.floor(drag.i/cols)*ph;if(!cancelled&&Math.hypot(drag.x-x,drag.y-y)<Math.max(30,pw*.5)){drag.x=x;drag.y=y;drag.done=true;count++;document.querySelector('#pcount').textContent=`${count} / ${pieces.length}`;}else{drag.x=drag.ox;drag.y=drag.oy;}drag=null;draw();if(count===pieces.length)modal('できた！ すてきな パズル',puzzleMenu);}
-  c.onpointerup=()=>release();c.onpointercancel=()=>release(true);draw();
+  mini.classList.add('portrait-reference');document.querySelector('#toolbar').prepend(mini);
+  const indicator=document.createElement('div');indicator.className='zoom-indicator puzzle-zoom-indicator';indicator.innerHTML='<meter min="1" max="4" value="1" aria-label="台紙の拡大倍率"></meter><output>1.0×</output>';document.querySelector('#toolbar').insertBefore(indicator,document.querySelector('#pcount'));
+  const inside=q=>q.x>=bx&&q.x<=bx+bw&&q.y>=by&&q.y<=by+bh;
+  const logical=q=>puzzleBoardPoint(q,pose,bx,by,bw,bh);
+  function board(drawContent){g.save();g.beginPath();g.rect(bx,by,bw,bh);g.clip();g.translate(bx+bw/2+pose.x,by+bh/2+pose.y);g.scale(pose.scale,pose.scale);g.translate(-bx-bw/2,-by-bh/2);drawContent();g.restore();}
+  function draw(){g.clearRect(0,0,c.width,c.height);g.drawImage(sprites.stages[3],0,0,c.width,c.height);rounded(g,bx-8,by-8,bw+16,bh+16,'#d0bda4',10);
+    board(()=>{g.globalAlpha=.15;g.drawImage(art,bx,by);g.globalAlpha=1;pieces.filter(p=>p.done).forEach(p=>drawPiece(g,art,p,cols,rows,pw,ph,pw,ph));});
+    pieces.filter(p=>!p.done&&p!==drag).forEach(p=>drawPiece(g,art,p,cols,rows,pw,ph,pw,ph));if(drag){if(dragBoard)board(()=>drawPiece(g,art,drag,cols,rows,pw,ph,pw,ph));else drawPiece(g,art,drag,cols,rows,pw,ph,pw,ph);}
+  }
+  function updatePose(){pose=colorZoomPose(pose.scale,pose.x,pose.y,bw,bh);indicator.querySelector('meter').value=pose.scale;indicator.querySelector('output').textContent=pose.scale.toFixed(1)+'×';draw();}
+  function pair(){const qs=[...touches.values()];return {x:(qs[0].x+qs[1].x)/2,y:(qs[0].y+qs[1].y)/2,d:Math.hypot(qs[0].x-qs[1].x,qs[0].y-qs[1].y)};}
+  function beginPinch(){const qs=[...touches.values()];if(qs.length<2||!qs.every(inside))return false;if(drag){drag.x=drag.ox;drag.y=drag.oy;drag=null;}const q=pair();gesture={...q,scale:pose.scale,px:pose.x,py:pose.y};multi=true;draw();return true;}
+  c.onpointerdown=e=>{e.preventDefault();const q=point(e,c);touches.set(e.pointerId,q);c.setPointerCapture(e.pointerId);if(touches.size>=2){beginPinch();return;}multi=false;dragBoard=false;
+    drag=[...pieces].reverse().find(p=>!p.done&&q.x>=p.x&&q.x<=p.x+pw&&q.y>=p.y&&q.y<=p.y+ph);if(drag){off={x:q.x-drag.x,y:q.y-drag.y};gesture=null;}else if(inside(q)){gesture={pan:true,x:q.x,y:q.y,px:pose.x,py:pose.y};}else gesture=null;draw();
+  };
+  c.onpointermove=e=>{if(!touches.has(e.pointerId))return;e.preventDefault();const q=point(e,c);touches.set(e.pointerId,q);
+    if(touches.size>=2){if(!gesture||gesture.pan)if(!beginPinch())return;const mid=pair(),scale=Math.max(1,Math.min(4,gesture.scale*mid.d/Math.max(1,gesture.d)));pose={scale,x:mid.x-bx-bw/2-(gesture.x-bx-bw/2-gesture.px)*scale/gesture.scale,y:mid.y-by-bh/2-(gesture.y-by-bh/2-gesture.py)*scale/gesture.scale};updatePose();return;}
+    if(multi)return;if(drag){dragBoard=inside(q);const p=dragBoard?logical(q):q;drag.x=p.x-off.x;drag.y=p.y-off.y;draw();}else if(gesture?.pan&&pose.scale>1){pose.x=gesture.px+q.x-gesture.x;pose.y=gesture.py+q.y-gesture.y;updatePose();}
+  };
+  function release(e,cancelled=false){if(!touches.has(e.pointerId))return;touches.delete(e.pointerId);if(drag&&!multi){const x=bx+drag.i%cols*pw,y=by+Math.floor(drag.i/cols)*ph;if(!cancelled&&dragBoard&&Math.hypot(drag.x-x,drag.y-y)<Math.max(22,pw*.5)){drag.x=x;drag.y=y;drag.done=true;count++;document.querySelector('#pcount').textContent=count+' / '+pieces.length;}else{drag.x=drag.ox;drag.y=drag.oy;}drag=null;if(count===pieces.length)modal('できた！ すてきな パズル',puzzleMenu);}if(!touches.size){gesture=null;multi=false;}draw();}
+  c.onpointerup=e=>release(e);c.onpointercancel=e=>release(e,true);c.onlostpointercapture=e=>release(e,true);draw();
+
 }
 function clawGlass(view){if(portraitLayout())return view?{x:74,y:45,w:310,h:588}:{x:60,y:42,w:358,h:510};return view?{x:127,y:20,w:600,h:332}:{x:102,y:18,w:692,h:288};}
 function clawOutlet(view){return portraitLayout()?{x:view?455:392,y:704}:{x:view?663:738,y:393};}
@@ -236,8 +254,9 @@ function claw() {
   let x=.5,z=.5,view=0,busy=false,phase=0,held=null,grip='miss',assessed=false,won=[],direction=0,velocity=0,message='クレーンの「おろす」を タップ';
   const items=Array.from({length:36},(_,i)=>({x:Math.max(0,Math.min(1,(i%6)/5+rand(-.018,.018))),z:Math.max(0,Math.min(1,Math.floor(i/6)/5+rand(-.018,.018))),toy:i%21,size:rand(.85,1.25),angle:i%4===0?(i%2?1:-1)*Math.PI/2:rand(-.3,.3),layer:i%3===0?1:i%11===0?2:0,buried:i%5===0,taken:false}));
   document.querySelector('#toolbar').classList.add('claw-deck');document.querySelector('#toolbar').innerHTML='<button class="view-turn" id="view" aria-label="視点を切り替える">↶</button><button class="round-control" id="left" aria-label="ひだりへ">←</button><button class="round-control" id="drop" aria-label="クレーンを おろす">○</button><button class="round-control" id="right" aria-label="みぎへ">→</button><button class="view-turn" id="view-right" aria-label="視点を切り替える">↷</button><span class="progress" id="won" hidden></span>';
+  document.querySelectorAll('.claw-deck button').forEach(button=>{button.addEventListener('contextmenu',e=>e.preventDefault());button.addEventListener('selectstart',e=>e.preventDefault());});
   const switchView=()=>{view=1-view;velocity=0;direction=0;};document.querySelector('#view').onclick=switchView;document.querySelector('#view-right').onclick=switchView;
-  for(const [id,dir] of [['left',-1],['right',1]]){const b=document.querySelector('#'+id);b.onpointerdown=e=>{direction=dir;b.setPointerCapture(e.pointerId);};b.onpointerup=b.onpointercancel=b.onlostpointercapture=()=>direction=0;}
+  for(const [id,dir] of [['left',-1],['right',1]]){const b=document.querySelector('#'+id);b.onpointerdown=e=>{e.preventDefault();direction=dir;b.setPointerCapture(e.pointerId);};b.onpointerup=b.onpointercancel=b.onlostpointercapture=()=>direction=0;}
   function drop(){if(busy)return;busy=true;direction=0;velocity=0;phase=0;held=null;grip='miss';assessed=false;message='つかむよ…';}
   const dropButton=document.querySelector('#drop');dropButton.onclick=drop;
   let previous=0;
@@ -346,7 +365,7 @@ function drawPinBoard(g,t,bars,ball,state=null){
   rounded(g,264,18,372,439,'#526170',18);
   g.drawImage(assets.cabinet,156,20,660,185,264,12,372,47);g.drawImage(assets.cabinet,153,220,93,670,264,59,22,384);g.drawImage(assets.cabinet,731,220,93,670,614,59,22,384);g.drawImage(assets.cabinet,115,922,743,168,264,443,372,18);
   const board=g.createLinearGradient(0,55,0,440);board.addColorStop(0,'#142e47');board.addColorStop(1,'#23243e');rounded(g,282,59,336,384,board,12);
-  g.save();g.beginPath();g.rect(282,59,308,384);g.clip();g.globalAlpha=.15;g.drawImage(sprites.puzzles[4],282,59,308,384);g.restore();
+  g.save();g.beginPath();g.rect(282,59,308,384);g.clip();g.globalAlpha=allPinNeonLit(state)?.95:.15;g.drawImage(sprites.puzzles[4],282,59,308,384);g.restore();
   for(let i=0;i<6;i++)drawPinNeon(g,i,!!state?.neon[i]);
   g.save();g.strokeStyle=t%1400<700?'#65dbe8':'#db7cdb';g.lineWidth=3;g.shadowColor=g.strokeStyle;g.shadowBlur=8;g.strokeRect(282,59,336,384);g.restore();
   // A separate unobstructed launch channel carries the ball above the playfield.

@@ -85,3 +85,8 @@ header{top:max(5px,env(safe-area-inset-top));left:8px;right:8px}.brand{font-size
 @media(orientation:portrait){.color-studio #bases{grid-template-columns:repeat(4,1fr);grid-template-rows:repeat(3,1fr)}.color-studio #mixes{grid-template-columns:repeat(2,1fr);grid-template-rows:repeat(3,1fr)}.color-studio .swatch,.color-studio .mix{min-height:36px;max-height:44px}}
 
 @media(orientation:portrait){.portrait-reference{position:static;padding:2px;border-radius:10px;line-height:0;flex:none}.portrait-reference .photo-thumb{width:42px;height:42px}.game-puzzle #toolbar{min-height:46px;justify-content:center;gap:18px}.game-puzzle .progress{font-size:13px;padding:5px 12px}}
+
+.game-puzzle{touch-action:none}.puzzle-zoom-indicator{width:160px;max-width:38%;gap:5px;padding:3px 7px}.puzzle-zoom-indicator output{min-width:39px;font-size:12px}.game-puzzle #toolbar{gap:10px}.game-puzzle .portrait-reference{position:static;flex:none}
+
+.claw-deck button{touch-action:none;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
+
