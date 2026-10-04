@@ -209,15 +209,16 @@ function puzzleSlots(cols,rows,pw,ph){
   for(let side=0;side<2;side++)for(let i=0;i<perSide;i++){const col=i%across,row=Math.floor(i/across);slots.push({x:(side?684:22)+col*(pw+12),y:22+row*(ph+gapY)});}
   for(let i=slots.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[slots[i],slots[j]]=[slots[j],slots[i]];}return slots;
 }
+function portraitPuzzleSlots(cols,rows,pw,ph){const slots=[],gap=2,zones=[{x:3,y:5,w:470,h:245},{x:5,y:260,w:102,h:480},{x:3,y:750,w:470,h:165}];for(const z of zones){const nx=Math.floor((z.w+gap)/(pw+gap)),ny=Math.floor((z.h+gap)/(ph+gap));for(let y=0;y<ny;y++)for(let x=0;x<nx;x++)slots.push({x:z.x+x*(pw+gap),y:z.y+y*(ph+gap)});}if(slots.length<cols*rows)throw new Error('Puzzle tray too small');return slots.slice(0,cols*rows);}
 function puzzle(t,d) {
-  shell('puzzle','ピースを もって、ぴったりの ばしょへ');const [c,g]=makeCanvas(portraitLayout()?480:1000,portraitLayout()?900:500),cols=[4,6,6,8][d],rows=[3,4,6,6][d],bw=300,bh=400,bx=portraitLayout()?90:350,by=portraitLayout()?20:50,pw=bw/cols,ph=bh/rows;
+  shell('puzzle','ピースを もって、ぴったりの ばしょへ');const [c,g]=makeCanvas(portraitLayout()?480:1000,portraitLayout()?930:500),cols=[4,6,6,8][d],rows=[3,4,6,6][d],bw=portraitLayout()?360:300,bh=portraitLayout()?480:400,bx=portraitLayout()?112:350,by=portraitLayout()?260:50,pw=bw/cols,ph=bh/rows;
   const art=document.createElement('canvas');art.width=bw;art.height=bh;art.getContext('2d').drawImage(sprites.puzzles[t],0,0,bw,bh);
-  const slots=portraitLayout()?Array.from({length:cols*rows},(_,i)=>({x:15+(i%Math.floor(450/(pw+5)))*(pw+5),y:455+Math.floor(i/Math.floor(450/(pw+5)))*(ph+8)})):puzzleSlots(cols,rows,pw,ph);
+  const slots=portraitLayout()?portraitPuzzleSlots(cols,rows,pw,ph):puzzleSlots(cols,rows,pw,ph);
   if(portraitLayout())for(let i=slots.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[slots[i],slots[j]]=[slots[j],slots[i]];}
   const pieces=Array.from({length:cols*rows},(_,i)=>({i,x:slots[i].x,y:slots[i].y,ox:slots[i].x,oy:slots[i].y,done:false}));let drag=null,off={},count=0;
   document.querySelector('#toolbar').innerHTML=`<span class="progress" id="pcount">0 / ${pieces.length}</span>`;
   const mini=document.createElement('button');mini.className='mini';mini.append(photoThumb(sprites.puzzles[t],75,52));mini.setAttribute('aria-label','おてほんを おおきくする');
-  mini.onclick=()=>{const o=document.createElement('div');o.className='overlay';o.setAttribute('aria-label','おてほん。まわりをタップすると とじる');const im=document.createElement('img');im.src=art.toDataURL();im.alt=puzzleThemes[t]+'の おてほん';im.style.cssText='width:60%;max-height:80%;object-fit:contain;border:8px solid white;border-radius:24px';o.append(im);o.onclick=e=>{if(e.target===o)o.remove();};app.append(o);};document.querySelector('#play').append(mini);
+  mini.onclick=()=>{const o=document.createElement('div');o.className='overlay';o.setAttribute('aria-label','おてほん。まわりをタップすると とじる');const im=document.createElement('img');im.src=art.toDataURL();im.alt=puzzleThemes[t]+'の おてほん';im.style.cssText='width:60%;max-height:80%;object-fit:contain;border:8px solid white;border-radius:24px';o.append(im);o.onclick=e=>{if(e.target===o)o.remove();};app.append(o);};if(portraitLayout()){mini.classList.add('portrait-reference');document.querySelector('#toolbar').prepend(mini);}else document.querySelector('#play').append(mini);
   const dims=()=>({w:pw,h:ph});
   function draw(){g.clearRect(0,0,c.width,c.height);g.drawImage(sprites.stages[3],0,0,c.width,c.height);rounded(g,bx-8,by-8,bw+16,bh+16,'#d0bda4',10);g.globalAlpha=.15;g.drawImage(art,bx,by);g.globalAlpha=1;pieces.filter(p=>p!==drag).forEach(p=>{const z=dims(p);drawPiece(g,art,p,cols,rows,pw,ph,z.w,z.h);});if(drag)drawPiece(g,art,drag,cols,rows,pw,ph,pw,ph);}
   c.onpointerdown=e=>{const q=point(e,c);drag=[...pieces].reverse().find(p=>{const z=dims(p);return !p.done&&q.x>=p.x&&q.x<=p.x+z.w&&q.y>=p.y&&q.y<=p.y+z.h;});if(drag){off={x:q.x-drag.x,y:q.y-drag.y};c.setPointerCapture(e.pointerId);draw();}};
@@ -225,8 +226,8 @@ function puzzle(t,d) {
   function release(cancelled=false){if(!drag)return;const x=bx+drag.i%cols*pw,y=by+Math.floor(drag.i/cols)*ph;if(!cancelled&&Math.hypot(drag.x-x,drag.y-y)<Math.max(30,pw*.5)){drag.x=x;drag.y=y;drag.done=true;count++;document.querySelector('#pcount').textContent=`${count} / ${pieces.length}`;}else{drag.x=drag.ox;drag.y=drag.oy;}drag=null;draw();if(count===pieces.length)modal('できた！ すてきな パズル',puzzleMenu);}
   c.onpointerup=()=>release();c.onpointercancel=()=>release(true);draw();
 }
-function clawGlass(view){if(portraitLayout())return {x:35,y:28,w:410,h:520};return view?{x:127,y:20,w:600,h:332}:{x:102,y:18,w:692,h:288};}
-function clawOutlet(view){return portraitLayout()?{x:392,y:704}:{x:view?663:738,y:393};}
+function clawGlass(view){if(portraitLayout())return view?{x:74,y:45,w:310,h:588}:{x:60,y:42,w:358,h:510};return view?{x:127,y:20,w:600,h:332}:{x:102,y:18,w:692,h:288};}
+function clawOutlet(view){return portraitLayout()?{x:view?455:392,y:704}:{x:view?663:738,y:393};}
 function clawX(view,position){const box=clawGlass(view);return box.x+56+position*(box.w-112);}
 function clawPrizePose(item,view){const box=clawGlass(view),size=87*item.size,extent=size*(Math.abs(Math.cos(item.angle))+Math.abs(Math.sin(item.angle))),depth=view?item.x:item.z,cx=Math.max(box.x+extent/2+2,Math.min(box.x+box.w-extent/2-2,clawX(view,view?item.z:item.x)));return {x:cx-size/2,y:box.y+box.h-8-depth*18-(item.layer||0)*24-extent/2-size/2,size};}
 function insideClaw(g,view,draw){const box=clawGlass(view);g.save();g.beginPath();g.rect(box.x,box.y,box.w,box.h);g.clip();draw();g.restore();}
@@ -250,15 +251,16 @@ function claw() {
       if(phase>4.05){busy=false;if(held){held.taken=true;won.push(held.toy);document.querySelector('#won').textContent=`とれた！ ${won.length} こ`;message='とれた！';}else if(grip==='miss')message='まえと よこで ばしょを あわせてね';held=null;if(items.every(i=>i.taken))modal('ぜんぶ とれた！',claw);}
     }
     g.clearRect(0,0,c.width,c.height);g.drawImage(sprites.stages[view?2:1],0,0,c.width,c.height);
-    insideClaw(g,view,()=>{const box=clawGlass(view),sy=box.y+112;const shelf=g.createLinearGradient(0,sy,0,sy+10);shelf.addColorStop(0,'#faf1dc');shelf.addColorStop(.5,'#bca28d');shelf.addColorStop(1,'#6b584b');g.fillStyle='#766656';g.fillRect(box.x+73,box.y+38,4,sy-box.y-38);g.fillRect(box.x+box.w-77,box.y+38,4,sy-box.y-38);for(let i=0;i<7;i++){const img=sprites.prizes[i*3],scale=Math.min((box.w-176)/7/img.width,95/img.height),px=box.x+88+(i+.5)*(box.w-176)/7;g.save();g.shadowColor='#4c3d3766';g.shadowBlur=5;g.shadowOffsetY=3;g.drawImage(img,px-img.width*scale/2,sy-img.height*scale,img.width*scale,img.height*scale);g.restore();}rounded(g,box.x+68,sy,box.w-136,10,shelf,2);});
+    insideClaw(g,view,()=>{const box=clawGlass(view),rowCount=portraitLayout()?5:3,left=box.x+13,shelfWidth=box.w-26,spacing=(box.h-22)/rowCount;g.fillStyle='#766656';g.fillRect(left,box.y+8,4,box.h-12);g.fillRect(left+shelfWidth-4,box.y+8,4,box.h-12);for(let row=0;row<rowCount;row++){const sy=box.y+14+(row+1)*spacing,columns=portraitLayout()?5:7;const shelf=g.createLinearGradient(0,sy,0,sy+9);shelf.addColorStop(0,'#faf1dc');shelf.addColorStop(.5,'#bca28d');shelf.addColorStop(1,'#6b584b');for(let i=0;i<columns;i++){const img=sprites.prizes[(row*columns+i)%21],scale=Math.min((shelfWidth-12)/columns/img.width,(spacing-15)/img.height),px=left+6+(i+.5)*(shelfWidth-12)/columns;g.save();g.shadowColor='#4c3d3766';g.shadowBlur=4;g.shadowOffsetY=2;g.drawImage(img,px-img.width*scale/2,sy-img.height*scale,img.width*scale,img.height*scale);g.restore();}rounded(g,left,sy,shelfWidth,9,shelf,2);}});
+
     insideClaw(g,view,()=>items.filter(i=>!i.taken&&i!==held).sort((a,b)=>(view?a.x-b.x:a.z-b.z)).forEach(i=>{const pose=clawPrizePose(i,view);drawPrize(g,i,pose.x,pose.y,pose.size,pose.size);}));
     insideClaw(g,view,()=>{const glass=clawGlass(view);g.globalAlpha=.1;g.fillStyle='#ffffff';g.beginPath();g.moveTo(glass.x+8,glass.y);g.lineTo(glass.x+68,glass.y);g.lineTo(glass.x+34,glass.y+glass.h);g.lineTo(glass.x+8,glass.y+glass.h);g.fill();g.globalAlpha=.24;g.strokeStyle='#ffffff';g.lineWidth=2;g.strokeRect(glass.x+3,glass.y+3,glass.w-6,glass.h-6);});
     let cx=clawX(view,view?z:x),cy=90;
     if(busy){const bottom=portraitLayout()?460:view?235:190;if(phase<1.15)cy=90+phase/1.15*(bottom-90);else if(phase<1.45)cy=bottom;else cy=bottom-Math.min(1,(phase-1.45)/1.1)*(bottom-90);if(phase>2.6&&held)cx+=(clawOutlet(view).x-cx)*Math.min(1,(phase-2.6)/.7);}
     const cable=g.createLinearGradient(cx-3,0,cx+4,0);cable.addColorStop(0,'#5a5754');cable.addColorStop(.5,'#efeeee');cable.addColorStop(1,'#686564');g.strokeStyle=cable;g.lineWidth=5;g.beginPath();g.moveTo(cx,32);g.lineTo(cx,cy-44);g.stroke();
-    drawContained(g,sprites.toys[11],cx-43,cy-50,86,112);if(held&&phase>=1.15){if(phase<3.35)insideClaw(g,view,()=>drawPrize(g,held,cx-34,cy+38,68,65));else{const u=Math.min(1,(phase-3.35)/.7);drawPrize(g,held,clawOutlet(view).x-29,(portraitLayout()?580:315)+u*(portraitLayout()?95:57),58,55);}}
+    insideClaw(g,view,()=>drawContained(g,sprites.toys[11],cx-43,cy-50,86,112));if(held&&phase>=1.15){if(phase<3.35)insideClaw(g,view,()=>drawPrize(g,held,cx-34,cy+38,68,65));else{const u=Math.min(1,(phase-3.35)/.7);g.save();if(portraitLayout()){g.beginPath();g.rect(view?433:365,610,view?47:70,128);g.clip();}drawPrize(g,held,clawOutlet(view).x-29,(portraitLayout()?580:315)+u*(portraitLayout()?95:57),58,55);g.restore();}}
     dropButton.disabled=busy;
-    if(won.length)drawContained(g,sprites.prizes[won[won.length-1]],clawOutlet(view).x-35,clawOutlet(view).y-27,70,62);
+    if(won.length){g.save();if(portraitLayout()){g.beginPath();g.rect(view?433:365,610,view?47:70,128);g.clip();}drawContained(g,sprites.prizes[won[won.length-1]],clawOutlet(view).x-35,clawOutlet(view).y-27,70,62);g.restore();}
   });
 }
 function shootMenu() {choose('shoot','なにで あそぶ？',['じゅう','ゆみ','みずでっぽう'],sprites.toys.slice(8,11),shoot);}
