@@ -16,6 +16,7 @@ function gripResult(item,x,z) {
   const distance = Math.hypot(item.x-x,item.z-z), radius = gripRadii[item.toy%8]*(item.size||1)*(item.buried?.72:1);
   return distance > radius ? 'miss' : distance > radius*.85 ? 'slip' : 'hold';
 }
+function portraitLayout(){return !!window.matchMedia?.('(orientation: portrait)').matches;}
 function resetActivity(key) { cleanup(); cleanup=()=>{}; current=key; return ++lifecycle; }
 function header(title) {return `<header><div class="brand">${title}</div><button class="round home-button" onclick="home()" aria-label="ホームへもどる"><span class="home-symbol" aria-hidden="true"></span></button></header>`;}
 function shell(key,text) {
@@ -93,7 +94,7 @@ function home() {
 }
 async function start(k) {
   const session=resetActivity('loading');app.innerHTML=header(names[k])+'<div class="loading">おもちゃを じゅんびしています…</div>';
-  const needed={face:['faces','stages'],color:['color18'],puzzle:['puzzle18','difficulty','stages'],claw:['prizes','toys','stages'],shoot:['prizes','toys','stages'],pinball:['cabinet','puzzle18']}[k];
+  const needed={face:['faces','stages'],color:['color18'],puzzle:['puzzle18','difficulty','stages'],claw:['prizes','toys','stages'],shoot:['prizes','toys','stages'],pinball:['cabinet','puzzle18','prizes']}[k];
   try{await Promise.all(needed.map(loadImage));if(session!==lifecycle)return;buildSprites();({face:faceMenu,color:colorMenu,puzzle:puzzleMenu,claw,shoot:shootMenu,pinball})[k]();}
   catch{if(session===lifecycle)app.innerHTML=header(names[k])+'<div class="loading">よみこめませんでした。おへやから もういちど あそんでね</div>';}
 }
@@ -107,7 +108,7 @@ function faceMenu() {choose('face','どの おかおで あそぶ？',family,spr
 function randomFaceTarget(){return {x:rand(145,335),y:rand(180,325)};}
 function face(type) {
   const p=shell('face','みぎみみの パーツを えらんでね');const session=lifecycle;p.classList.add('face-play');
-  const [c,g]=makeCanvas(480,480);const panel=document.createElement('div');panel.className='face-panel';p.append(panel);
+  const [c,g]=makeCanvas(480,portraitLayout()?660:480);const panel=document.createElement('div');panel.className='face-panel';p.append(panel);
   let placed=[],selected=null,target={x:240,y:240},next=0,timer;
   document.querySelector('#toolbar').innerHTML='<span class="progress" id="count">0 / 8</span><span id="face-next">みぎみみを えらぼう</span>';
   function renderChoices() {
@@ -123,10 +124,11 @@ function face(type) {
   };
   document.querySelector('.game-face').onclick=e=>{if(e.target.closest('button,header'))return;placePart();};
   renderChoices();loop(t=>{
-    g.clearRect(0,0,480,480);g.drawImage(sprites.stages[3],0,0,480,480);rounded(g,58,20,364,435,'#fffdf5',16);drawFaceBase(g,type);
+    g.clearRect(0,0,c.width,c.height);g.drawImage(sprites.stages[3],0,0,c.width,c.height);g.save();if(portraitLayout())g.setTransform(1.5,0,0,1.5,-120,0);rounded(g,58,20,364,435,'#fffdf5',16);drawFaceBase(g,type);
     if(selected!==null&&t>next){target=randomFaceTarget();next=t+140;}
     placed.forEach(v=>{const animate=placed.length===8&&(v.part===2||v.part===3||v.part===7);drawFeature(g,v.part,v.person,v.x,v.y,animate?Math.sin(t/230+v.part)*.1:0,v.part===7&&placed.length===8?1+Math.sin(t/170)*.18:1);});
     if(selected!==null){g.strokeStyle='#d2578a';g.lineWidth=4;g.setLineDash([6,5]);g.beginPath();g.arc(target.x,target.y,27,0,Math.PI*2);g.stroke();g.setLineDash([]);g.globalAlpha=.5;drawFeature(g,placed.length,selected,target.x,target.y);g.globalAlpha=1;}
+    g.restore();
   });const cancelLoop=cleanup;cleanup=()=>{cancelLoop();clearTimeout(timer);};
 }
 function colorMenu() {themeChoose('color','どの えを ぬろう？',sprites.coloring,color);}
@@ -208,26 +210,28 @@ function puzzleSlots(cols,rows,pw,ph){
   for(let i=slots.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[slots[i],slots[j]]=[slots[j],slots[i]];}return slots;
 }
 function puzzle(t,d) {
-  shell('puzzle','ピースを もって、ぴったりの ばしょへ');const [c,g]=makeCanvas(1000,500),cols=[4,6,6,8][d],rows=[3,4,6,6][d],bw=300,bh=400,bx=350,by=50,pw=bw/cols,ph=bh/rows;
+  shell('puzzle','ピースを もって、ぴったりの ばしょへ');const [c,g]=makeCanvas(portraitLayout()?480:1000,portraitLayout()?900:500),cols=[4,6,6,8][d],rows=[3,4,6,6][d],bw=300,bh=400,bx=portraitLayout()?90:350,by=portraitLayout()?20:50,pw=bw/cols,ph=bh/rows;
   const art=document.createElement('canvas');art.width=bw;art.height=bh;art.getContext('2d').drawImage(sprites.puzzles[t],0,0,bw,bh);
-  const slots=puzzleSlots(cols,rows,pw,ph);
+  const slots=portraitLayout()?Array.from({length:cols*rows},(_,i)=>({x:15+(i%Math.floor(450/(pw+5)))*(pw+5),y:455+Math.floor(i/Math.floor(450/(pw+5)))*(ph+8)})):puzzleSlots(cols,rows,pw,ph);
+  if(portraitLayout())for(let i=slots.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[slots[i],slots[j]]=[slots[j],slots[i]];}
   const pieces=Array.from({length:cols*rows},(_,i)=>({i,x:slots[i].x,y:slots[i].y,ox:slots[i].x,oy:slots[i].y,done:false}));let drag=null,off={},count=0;
   document.querySelector('#toolbar').innerHTML=`<span class="progress" id="pcount">0 / ${pieces.length}</span>`;
   const mini=document.createElement('button');mini.className='mini';mini.append(photoThumb(sprites.puzzles[t],75,52));mini.setAttribute('aria-label','おてほんを おおきくする');
   mini.onclick=()=>{const o=document.createElement('div');o.className='overlay';o.setAttribute('aria-label','おてほん。まわりをタップすると とじる');const im=document.createElement('img');im.src=art.toDataURL();im.alt=puzzleThemes[t]+'の おてほん';im.style.cssText='width:60%;max-height:80%;object-fit:contain;border:8px solid white;border-radius:24px';o.append(im);o.onclick=e=>{if(e.target===o)o.remove();};app.append(o);};document.querySelector('#play').append(mini);
   const dims=()=>({w:pw,h:ph});
-  function draw(){g.clearRect(0,0,1000,500);g.drawImage(sprites.stages[3],0,0,1000,500);rounded(g,bx-8,by-8,bw+16,bh+16,'#d0bda4',10);g.globalAlpha=.15;g.drawImage(art,bx,by);g.globalAlpha=1;pieces.filter(p=>p!==drag).forEach(p=>{const z=dims(p);drawPiece(g,art,p,cols,rows,pw,ph,z.w,z.h);});if(drag)drawPiece(g,art,drag,cols,rows,pw,ph,pw,ph);}
+  function draw(){g.clearRect(0,0,c.width,c.height);g.drawImage(sprites.stages[3],0,0,c.width,c.height);rounded(g,bx-8,by-8,bw+16,bh+16,'#d0bda4',10);g.globalAlpha=.15;g.drawImage(art,bx,by);g.globalAlpha=1;pieces.filter(p=>p!==drag).forEach(p=>{const z=dims(p);drawPiece(g,art,p,cols,rows,pw,ph,z.w,z.h);});if(drag)drawPiece(g,art,drag,cols,rows,pw,ph,pw,ph);}
   c.onpointerdown=e=>{const q=point(e,c);drag=[...pieces].reverse().find(p=>{const z=dims(p);return !p.done&&q.x>=p.x&&q.x<=p.x+z.w&&q.y>=p.y&&q.y<=p.y+z.h;});if(drag){off={x:q.x-drag.x,y:q.y-drag.y};c.setPointerCapture(e.pointerId);draw();}};
   c.onpointermove=e=>{if(drag){const q=point(e,c);drag.x=Math.max(0,Math.min(c.width-pw,q.x-off.x));drag.y=Math.max(0,Math.min(c.height-ph,q.y-off.y));draw();}};
   function release(cancelled=false){if(!drag)return;const x=bx+drag.i%cols*pw,y=by+Math.floor(drag.i/cols)*ph;if(!cancelled&&Math.hypot(drag.x-x,drag.y-y)<Math.max(30,pw*.5)){drag.x=x;drag.y=y;drag.done=true;count++;document.querySelector('#pcount').textContent=`${count} / ${pieces.length}`;}else{drag.x=drag.ox;drag.y=drag.oy;}drag=null;draw();if(count===pieces.length)modal('できた！ すてきな パズル',puzzleMenu);}
   c.onpointerup=()=>release();c.onpointercancel=()=>release(true);draw();
 }
-function clawGlass(view){return view?{x:127,y:20,w:600,h:332}:{x:102,y:18,w:692,h:288};}
+function clawGlass(view){if(portraitLayout())return {x:35,y:28,w:410,h:520};return view?{x:127,y:20,w:600,h:332}:{x:102,y:18,w:692,h:288};}
+function clawOutlet(view){return portraitLayout()?{x:392,y:704}:{x:view?663:738,y:393};}
 function clawX(view,position){const box=clawGlass(view);return box.x+56+position*(box.w-112);}
 function clawPrizePose(item,view){const box=clawGlass(view),size=87*item.size,extent=size*(Math.abs(Math.cos(item.angle))+Math.abs(Math.sin(item.angle))),depth=view?item.x:item.z,cx=Math.max(box.x+extent/2+2,Math.min(box.x+box.w-extent/2-2,clawX(view,view?item.z:item.x)));return {x:cx-size/2,y:box.y+box.h-8-depth*18-(item.layer||0)*24-extent/2-size/2,size};}
 function insideClaw(g,view,draw){const box=clawGlass(view);g.save();g.beginPath();g.rect(box.x,box.y,box.w,box.h);g.clip();draw();g.restore();}
 function claw() {
-  shell('claw','まえ・よこを みて まんなかに あわせよう');const [c,g]=makeCanvas(900,460);
+  shell('claw','まえ・よこを みて まんなかに あわせよう');const [c,g]=makeCanvas(portraitLayout()?480:900,portraitLayout()?860:460);
   let x=.5,z=.5,view=0,busy=false,phase=0,held=null,grip='miss',assessed=false,won=[],direction=0,velocity=0,message='クレーンの「おろす」を タップ';
   const items=Array.from({length:36},(_,i)=>({x:Math.max(0,Math.min(1,(i%6)/5+rand(-.018,.018))),z:Math.max(0,Math.min(1,Math.floor(i/6)/5+rand(-.018,.018))),toy:i%21,size:rand(.85,1.25),angle:i%4===0?(i%2?1:-1)*Math.PI/2:rand(-.3,.3),layer:i%3===0?1:i%11===0?2:0,buried:i%5===0,taken:false}));
   document.querySelector('#toolbar').classList.add('claw-deck');document.querySelector('#toolbar').innerHTML='<button class="view-turn" id="view" aria-label="視点を切り替える">↶</button><button class="round-control" id="left" aria-label="ひだりへ">←</button><button class="round-control" id="drop" aria-label="クレーンを おろす">○</button><button class="round-control" id="right" aria-label="みぎへ">→</button><button class="view-turn" id="view-right" aria-label="視点を切り替える">↷</button><span class="progress" id="won" hidden></span>';
@@ -245,25 +249,26 @@ function claw() {
       if(phase>2.15&&grip==='slip'&&held){held=null;message='おちちゃった！ もうすこし まんなかへ';}
       if(phase>4.05){busy=false;if(held){held.taken=true;won.push(held.toy);document.querySelector('#won').textContent=`とれた！ ${won.length} こ`;message='とれた！';}else if(grip==='miss')message='まえと よこで ばしょを あわせてね';held=null;if(items.every(i=>i.taken))modal('ぜんぶ とれた！',claw);}
     }
-    g.clearRect(0,0,900,460);g.drawImage(sprites.stages[view?2:1],0,0,900,460);
+    g.clearRect(0,0,c.width,c.height);g.drawImage(sprites.stages[view?2:1],0,0,c.width,c.height);
     insideClaw(g,view,()=>{const box=clawGlass(view),sy=box.y+112;const shelf=g.createLinearGradient(0,sy,0,sy+10);shelf.addColorStop(0,'#faf1dc');shelf.addColorStop(.5,'#bca28d');shelf.addColorStop(1,'#6b584b');g.fillStyle='#766656';g.fillRect(box.x+73,box.y+38,4,sy-box.y-38);g.fillRect(box.x+box.w-77,box.y+38,4,sy-box.y-38);for(let i=0;i<7;i++){const img=sprites.prizes[i*3],scale=Math.min((box.w-176)/7/img.width,95/img.height),px=box.x+88+(i+.5)*(box.w-176)/7;g.save();g.shadowColor='#4c3d3766';g.shadowBlur=5;g.shadowOffsetY=3;g.drawImage(img,px-img.width*scale/2,sy-img.height*scale,img.width*scale,img.height*scale);g.restore();}rounded(g,box.x+68,sy,box.w-136,10,shelf,2);});
     insideClaw(g,view,()=>items.filter(i=>!i.taken&&i!==held).sort((a,b)=>(view?a.x-b.x:a.z-b.z)).forEach(i=>{const pose=clawPrizePose(i,view);drawPrize(g,i,pose.x,pose.y,pose.size,pose.size);}));
     insideClaw(g,view,()=>{const glass=clawGlass(view);g.globalAlpha=.1;g.fillStyle='#ffffff';g.beginPath();g.moveTo(glass.x+8,glass.y);g.lineTo(glass.x+68,glass.y);g.lineTo(glass.x+34,glass.y+glass.h);g.lineTo(glass.x+8,glass.y+glass.h);g.fill();g.globalAlpha=.24;g.strokeStyle='#ffffff';g.lineWidth=2;g.strokeRect(glass.x+3,glass.y+3,glass.w-6,glass.h-6);});
     let cx=clawX(view,view?z:x),cy=90;
-    if(busy){const bottom=view?235:190;if(phase<1.15)cy=90+phase/1.15*(bottom-90);else if(phase<1.45)cy=bottom;else cy=bottom-Math.min(1,(phase-1.45)/1.1)*(bottom-90);if(phase>2.6&&held)cx+=((view?663:738)-cx)*Math.min(1,(phase-2.6)/.7);}
+    if(busy){const bottom=portraitLayout()?460:view?235:190;if(phase<1.15)cy=90+phase/1.15*(bottom-90);else if(phase<1.45)cy=bottom;else cy=bottom-Math.min(1,(phase-1.45)/1.1)*(bottom-90);if(phase>2.6&&held)cx+=(clawOutlet(view).x-cx)*Math.min(1,(phase-2.6)/.7);}
     const cable=g.createLinearGradient(cx-3,0,cx+4,0);cable.addColorStop(0,'#5a5754');cable.addColorStop(.5,'#efeeee');cable.addColorStop(1,'#686564');g.strokeStyle=cable;g.lineWidth=5;g.beginPath();g.moveTo(cx,32);g.lineTo(cx,cy-44);g.stroke();
-    drawContained(g,sprites.toys[11],cx-43,cy-50,86,112);if(held&&phase>=1.15){if(phase<3.35)insideClaw(g,view,()=>drawPrize(g,held,cx-34,cy+38,68,65));else{const u=Math.min(1,(phase-3.35)/.7);drawPrize(g,held,(view?663:738)-29,315+u*57,58,55);}}
+    drawContained(g,sprites.toys[11],cx-43,cy-50,86,112);if(held&&phase>=1.15){if(phase<3.35)insideClaw(g,view,()=>drawPrize(g,held,cx-34,cy+38,68,65));else{const u=Math.min(1,(phase-3.35)/.7);drawPrize(g,held,clawOutlet(view).x-29,(portraitLayout()?580:315)+u*(portraitLayout()?95:57),58,55);}}
     dropButton.disabled=busy;
-    if(won.length)drawContained(g,sprites.prizes[won[won.length-1]],view?628:705,366,70,62);
+    if(won.length)drawContained(g,sprites.prizes[won[won.length-1]],clawOutlet(view).x-35,clawOutlet(view).y-27,70,62);
   });
 }
 function shootMenu() {choose('shoot','なにで あそぶ？',['じゅう','ゆみ','みずでっぽう'],sprites.toys.slice(8,11),shoot);}
-const shootingShelves=[{x:80,y:149,w:430},{x:80,y:318,w:430},{x:550,y:105,w:370},{x:550,y:212,w:370},{x:550,y:318,w:370}];
-function shootingItems(){return Array.from({length:21},(_,i)=>{const bay=i<5?0:i<10?1:i<14?2:i<18?3:4,shelf=shootingShelves[bay],n=bay<2?5:bay<4?4:3,slot=i-[0,5,10,14,18][bay],large=bay===1&&slot%2===0,width=shelf.w/n*.93,height=large?151:bay===1?140:bay===4?101:bay===0?113:bay===2?91:94;return {x:shelf.x+(slot+.5)*shelf.w/n,y:shelf.y-height/2,toy:i,width,height,hp:large?3:1,maxHp:large?3:1,gone:false,tilt:0};});}
+const defaultShootingShelves=[{x:80,y:149,w:430},{x:80,y:318,w:430},{x:550,y:105,w:370},{x:550,y:212,w:370},{x:550,y:318,w:370}];
+let shootingShelves=defaultShootingShelves;
+function shootingItems(){shootingShelves=portraitLayout()?Array.from({length:5},(_,i)=>({x:24,y:151+i*149,w:432})):defaultShootingShelves;return Array.from({length:21},(_,i)=>{const bay=i<5?0:i<10?1:i<14?2:i<18?3:4,shelf=shootingShelves[bay],n=bay<2?5:bay<4?4:3,slot=i-[0,5,10,14,18][bay],large=bay===1&&slot%2===0,width=shelf.w/n*.93,height=portraitLayout()?127:large?151:bay===1?140:bay===4?101:bay===0?113:bay===2?91:94;return {x:shelf.x+(slot+.5)*shelf.w/n,y:shelf.y-height/2,toy:i,width,height,hp:large?3:1,maxHp:large?3:1,gone:false,tilt:0};});}
 function shotResult(items,aim,gauge,angle=0){const distance=Math.abs(gauge-.5)*2*200,x=aim.x+Math.cos(angle)*distance,y=aim.y+Math.sin(angle)*distance;return {x,y,hit:[...items].reverse().find(i=>!i.gone&&Math.abs(i.x-x)<i.width/2&&Math.abs(i.y-y)<i.height/2)};}
 function applyShot(item) {if(!item||item.gone)return false;item.hp--;item.tilt+=.15;item.gone=item.hp<=0;return item.gone;}
 function shoot(weapon) {
-  shell('shoot','けいひんを えらんで、もういちど タップで うつよ');const [c,g]=makeCanvas(1000,470);
+  shell('shoot','けいひんを えらんで、もういちど タップで うつよ');const [c,g]=makeCanvas(portraitLayout()?480:1000,portraitLayout()?900:470);
   const items=shootingItems();let aim=null,gauge=0,active=false,bullet=null,message='すきな けいひんを タップ',count=0,shotAngle=0;
   const stop=document.createElement('button');stop.className='primary';stop.textContent='◎';stop.setAttribute('aria-label','ゲージを止めて発射');stop.disabled=true;stop.hidden=true;document.querySelector('#toolbar').append(stop);
   const label=document.createElement('span');label.className='progress';label.textContent='0 / 21';document.querySelector('#toolbar').append(label);
@@ -272,7 +277,7 @@ function shoot(weapon) {
   }
   stop.onclick=fire;c.onclick=e=>{if(active){fire();return;}const p=point(e,c),target=[...items].reverse().find(i=>!i.gone&&Math.abs(i.x-p.x)<i.width/2+8&&Math.abs(i.y-p.y)<i.height/2+8);if(target){aim={x:p.x,y:p.y,width:target.width};shotAngle=Math.random()*Math.PI*2;active=true;stop.disabled=false;message='まんなかで とめてね';}};
   loop(t=>{
-    if(active)gauge=(Math.sin(t/470)+1)/2;g.clearRect(0,0,1000,470);g.drawImage(sprites.stages[0],0,0,1000,345);
+    if(active)gauge=(Math.sin(t/470)+1)/2;g.clearRect(0,0,c.width,c.height);g.drawImage(sprites.stages[0],0,0,c.width,portraitLayout()?830:345);
     for(const shelf of shootingShelves){const y=shelf.y;const wood=g.createLinearGradient(0,y,0,y+13);wood.addColorStop(0,'#b4804f');wood.addColorStop(.5,'#70411e');wood.addColorStop(1,'#452814');rounded(g,shelf.x,y,shelf.w,13,wood,2);}
     items.forEach(i=>{if(i.gone)return;g.save();g.translate(i.x,i.y+i.height/2);g.rotate(i.tilt);g.shadowColor='#38201366';g.shadowBlur=6;g.shadowOffsetY=3;
       const img=sprites.prizes[i.toy],scale=Math.min(i.width/img.width,i.height/img.height);g.drawImage(img,-img.width*scale/2,-img.height*scale,img.width*scale,img.height*scale);g.restore();
@@ -282,7 +287,7 @@ function shoot(weapon) {
     if(active){g.fillStyle='#fff8e588';g.beginPath();g.arc(aim.x,aim.y,43,0,Math.PI*2);g.fill();g.strokeStyle='#64b48b';g.lineWidth=4;g.beginPath();g.arc(aim.x,aim.y,6,0,Math.PI*2);g.stroke();g.strokeStyle='#e37a8c';g.beginPath();g.arc(aim.x,aim.y,6+Math.abs(gauge-.5)*68,0,Math.PI*2);g.stroke();}
 
     if(bullet&&t-bullet.time<700){g.strokeStyle=weapon===2?'#48aeda':'#f3dc8f';g.lineWidth=5;g.beginPath();g.arc(bullet.x,bullet.y,12+(t-bullet.time)/45,0,Math.PI*2);g.stroke();}
-    drawContained(g,sprites.toys[8+weapon],90,371,160,92);g.fillStyle='#715044';g.font='bold 21px sans-serif';g.textAlign='center';g.textBaseline='middle';
+    drawContained(g,sprites.toys[8+weapon],portraitLayout()?190:90,portraitLayout()?835:371,portraitLayout()?100:160,portraitLayout()?60:92);g.fillStyle='#715044';g.font='bold 21px sans-serif';g.textAlign='center';g.textBaseline='middle';
   });
 }
 const pinPegs=[{x:326,y:105,r:7},{x:437,y:100,r:7},{x:551,y:111,r:7},{x:311,y:164,r:6},{x:437,y:190,r:7},{x:564,y:178,r:6},{x:316,y:234,r:7},{x:540,y:242,r:6},{x:385,y:307,r:6},{x:509,y:284,r:7},{x:435,y:306,r:6},{x:310,y:311,r:6},{x:559,y:285,r:7},{x:475,y:364,r:6},{x:408,y:379,r:6}];
@@ -329,23 +334,18 @@ const pinNeonTargets=[0,2,4,7,9,11];
 const pinNeonColors=['#64eafa','#ffc35d','#ff85cc','#aa8bff','#85ef91','#ff9d69'];
 const pinLedPictures=[];
 function drawPinNeon(g,i,lit){
-  if(!pinLedPictures[i]){
-    const source=document.createElement('canvas');source.width=72;source.height=42;const sg=source.getContext('2d');
-    sg.drawImage(sprites.puzzles[[0,1,4,8,10,13][i]],0,0,72,42);const pixels=sg.getImageData(0,0,72,42).data;
-    pinLedPictures[i]=[false,true].map(on=>{const panel=document.createElement('canvas');panel.width=242;panel.height=140;const pg=panel.getContext('2d');pg.fillStyle='#08111d';pg.fillRect(0,0,242,140);
-      for(let y=0;y<42;y++)for(let x=0;x<72;x++){const k=(y*72+x)*4,r=pixels[k],gg=pixels[k+1],b=pixels[k+2];const brightness=Math.max(r,gg,b);if(brightness<38)continue;
-        const strength=on?1:.32;pg.fillStyle='rgb('+Math.round(r*strength)+','+Math.round(gg*strength)+','+Math.round(b*strength)+')';pg.shadowColor=pg.fillStyle;pg.shadowBlur=on?2:0;pg.beginPath();pg.arc(2+x*3.3,2+y*3.3,on?1.25:1.05,0,Math.PI*2);pg.fill();}
-      return panel;});
-  }
-  const x=i<3?8:650,y=9+(i%3)*151;g.drawImage(pinLedPictures[i][lit?1:0],x,y);
+  if(!pinLedPictures[i]){const source=document.createElement('canvas');source.width=40;source.height=56;const sg=source.getContext('2d');drawContained(sg,sprites.prizes[[0,2,3,5,6,9][i]],0,0,40,56);const pixels=sg.getImageData(0,0,40,56).data;
+    pinLedPictures[i]=[false,true].map(on=>{const panel=document.createElement('canvas');panel.width=100;panel.height=140;const pg=panel.getContext('2d');for(let y=0;y<56;y++)for(let x=0;x<40;x++){const k=(y*40+x)*4;if(pixels[k+3]<110)continue;const strength=on?1:.23;pg.fillStyle='rgb('+Math.round(pixels[k]*strength)+','+Math.round(pixels[k+1]*strength)+','+Math.round(pixels[k+2]*strength)+')';pg.shadowColor=pg.fillStyle;pg.shadowBlur=on?2:0;pg.beginPath();pg.arc(1.25+x*2.45,1.25+y*2.45,on?1:.85,0,Math.PI*2);pg.fill();}return panel;});
+  }const x=i<3?291:506,y=86+(i%3)*111;g.drawImage(pinLedPictures[i][lit?1:0],x,y,65,91);
 }
 function drawPinBoard(g,t,bars,ball,state=null){
   const bg=g.createLinearGradient(0,0,900,470);bg.addColorStop(0,'#071223');bg.addColorStop(.5,'#24243c');bg.addColorStop(1,'#0b1124');rounded(g,0,0,900,470,bg,15);
-  for(let i=0;i<6;i++)drawPinNeon(g,i,!!state?.neon[i]);
+
   rounded(g,264,18,372,439,'#526170',18);
   g.drawImage(assets.cabinet,156,20,660,185,264,12,372,47);g.drawImage(assets.cabinet,153,220,93,670,264,59,22,384);g.drawImage(assets.cabinet,731,220,93,670,614,59,22,384);g.drawImage(assets.cabinet,115,922,743,168,264,443,372,18);
   const board=g.createLinearGradient(0,55,0,440);board.addColorStop(0,'#142e47');board.addColorStop(1,'#23243e');rounded(g,282,59,336,384,board,12);
-  g.save();g.beginPath();g.rect(282,59,308,384);g.clip();g.globalAlpha=.48;g.drawImage(sprites.puzzles[4],282,59,308,384);g.restore();
+  g.save();g.beginPath();g.rect(282,59,308,384);g.clip();g.globalAlpha=.15;g.drawImage(sprites.puzzles[4],282,59,308,384);g.restore();
+  for(let i=0;i<6;i++)drawPinNeon(g,i,!!state?.neon[i]);
   g.save();g.strokeStyle=t%1400<700?'#65dbe8':'#db7cdb';g.lineWidth=3;g.shadowColor=g.strokeStyle;g.shadowBlur=8;g.strokeRect(282,59,336,384);g.restore();
   // A separate unobstructed launch channel carries the ball above the playfield.
   g.fillStyle='#52667866';g.fillRect(594,92,20,349);g.strokeStyle='#beced299';g.lineWidth=2;g.beginPath();g.moveTo(590,443);g.lineTo(590,108);g.stroke();
@@ -361,7 +361,7 @@ function drawPinBoard(g,t,bars,ball,state=null){
   const glass=g.createLinearGradient(280,60,530,430);glass.addColorStop(0,'#ffffff0c');glass.addColorStop(.5,'#ffffff00');glass.addColorStop(1,'#ffffff04');rounded(g,287,62,326,375,glass,12);
 }
 function pinball(){
-  shell('pinball','ほしに あてると ネオンが つくよ！');const [c,g]=makeCanvas(900,470),bars=pinBars();let ball=null,last=0,score=0,state=newPinState();
+  shell('pinball','ほしに あてると ネオンが つくよ！');const [c,g]=makeCanvas(portraitLayout()?420:900,portraitLayout()?760:470),bars=pinBars();let ball=null,last=0,score=0,state=newPinState();
   const toolbar=document.querySelector('#toolbar');toolbar.classList.add('pin-toolbar');
   const launch=document.createElement('button');launch.className='primary neon-launch';launch.textContent='●';launch.setAttribute('aria-label','金球を発射');toolbar.append(launch);
   const scoreLabel=document.createElement('span');scoreLabel.className='progress';scoreLabel.textContent='はねた！ 0 かい';toolbar.append(scoreLabel);
@@ -374,7 +374,7 @@ function pinball(){
   });
   loop(t=>{const dt=last?Math.min((t-last)/1000,.05):0;last=t;
     if(ball){for(let n=0;n<6;n++){const result=pinStep(ball,bars,dt/6,state);score+=result.hits;if(result.lost){ball=null;launch.disabled=false;launch.textContent='●';document.querySelector('.instruction').textContent='ゲームオーバー！ もういちど はっしゃしてね';break;}}scoreLabel.textContent=state.neon.every(Boolean)?'ネオン ぜんぶ ついた！':('はねた！ '+score+' かい'+(state.bonus?' ＋ '+state.bonus:''));}
-    if(!ball)advancePinBars(bars,dt);drawPinBoard(g,t,bars,ball,state);
+    if(!ball)advancePinBars(bars,dt);g.save();if(portraitLayout())g.setTransform(1.1,0,0,1.6,-285,0);drawPinBoard(g,t,bars,ball,state);g.restore();
   });
 }
 
